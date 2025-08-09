@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive Tropical Birthday Card</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <style>
+    body {
+      background: linear-gradient(#00c6ff, #0072ff);
+      overflow: hidden;
+      perspective: 1000px;
+    }
+    canvas {
+      display: block;
+      margin: auto;
+    }
+    .layer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      transform-style: preserve-3d;
+    }
+    .layer img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen text-white relative">
+  <!-- Parallax Layers -->
+  <div class="layer" id="bgLayer"><img src="https://images.unsplash.com/photo-1745094986791-249f34970ee5?q=80&w=1542&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Tropical Background"></div>
+  <div class="layer" id="midLayer"><img src="https://scontent-lax3-2.xx.fbcdn.net/v/t1.6435-9/96547460_3293641633988591_4392459390012096512_n.jpg?_nc_cat=101&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=-5gRqkobnIkQ7kNvwHA4HQD&_nc_oc=AdnPMVNGeVrPs2K70NSfVNA1UkPMtNHK9Xd9XSnQe73vYN5CWfdhKrQBRaSN2Mf-PI8pMZ3FNwOUz94C2vc7x2yv&_nc_zt=23&_nc_ht=scontent-lax3-2.xx&_nc_gid=Jsc3zDTTMeT8dqlqLd_EGg&oh=00_AfXpj7qKlH5b-yeY7ENlQS9GZACgCmJWK75s-tXkxQ6Zuw&oe=68BDFB2C" alt="Palm Trees"></div>
+  <div class="layer" id="frontLayer"><img src="https://images.unsplash.com/photo-1525577288853-c6f0a020a162?q=80&w=1738&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Front Leaves"></div>
+
+  <div class="p-6 rounded-2xl bg-white/20 backdrop-blur-md shadow-xl w-full max-w-3xl relative z-10">
+    <h1 class="text-3xl font-bold text-center mb-4">🌴 Happy Birthday 🌊</h1>
+    <p class="text-center mb-6">Let the island vibes move with your music!</p>
+    <input type="file" id="audioFile" accept="audio/*" class="mb-4" />
+    <canvas id="visualizer" width="800" height="400"></canvas>
+    <div class="mt-4 flex justify-center gap-4">
+      <button id="playBtn" class="px-4 py-2 bg-yellow-400 rounded hover:bg-yellow-500 text-black">Play</button>
+      <button id="pauseBtn" class="px-4 py-2 bg-red-500 rounded hover:bg-red-600">Pause</button>
+    </div>
+  </div>
+
+  <script>
+    const audioFile = document.getElementById('audioFile');
+    const canvas = document.getElementById('visualizer');
+    const ctx = canvas.getContext('2d');
+    let audioCtx, analyser, source, dataArray, bufferLength, audio;
+    let particles = [];
+
+    class Particle {
+      constructor(x, y, size, color, velocity) {
+        this.x = x;
+        this.y = y;
+        this.size = size;
+        this.color = color;
+        this.velocity = velocity;
+      }
+      update() {
+        this.x += this.velocity.x;
+        this.y += this.velocity.y;
+        this.size *= 0.96;
+      }
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+      }
+    }
+
+    function spawnTrippyParticles(bass, treble) {
+      const count = Math.floor((bass + treble) / 40);
+      for (let i = 0; i < count; i++) {
+        particles.push(
+          new Particle(
+            canvas.width / 2,
+            canvas.height / 2,
+            Math.random() * 6 + 2,
+            `hsl(${Math.random() * 360}, 100%, 60%)`,
+            {
+              x: (Math.random() - 0.5) * 6,
+              y: (Math.random() - 0.5) * 6
+            }
+          )
+        );
+      }
+    }
+
+    function initParallax() {
+      document.addEventListener('mousemove', (e) => {
+        const x = (e.clientX / window.innerWidth - 0.5) * 20;
+        const y = (e.clientY / window.innerHeight - 0.5) * 20;
+        gsap.to('#bgLayer', { x: x * 0.2, y: y * 0.2, duration: 0.5 });
+        gsap.to('#midLayer', { x: x * 0.5, y: y * 0.5, duration: 0.5 });
+        gsap.to('#frontLayer', { x: x, y: y, duration: 0.5 });
+      });
+    }
+
+    audioFile.addEventListener('change', () => {
+      if (audio) audio.pause();
+      const file = audioFile.files[0];
+      if (!file) return;
+      audio = new Audio(URL.createObjectURL(file));
+      audio.crossOrigin = "anonymous";
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      source = audioCtx.createMediaElementSource(audio);
+      source.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      analyser.fftSize = 256;
+      bufferLength = analyser.frequencyBinCount;
+      dataArray = new Uint8Array(bufferLength);
+      draw();
+    });
+
+    document.getElementById('playBtn').addEventListener('click', () => {
+      audio.play();
+      audioCtx.resume();
+    });
+
+    document.getElementById('pauseBtn').addEventListener('click', () => {
+      audio.pause();
+    });
+
+    function draw() {
+      requestAnimationFrame(draw);
+      analyser.getByteFrequencyData(dataArray);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const bass = dataArray.slice(0, 5).reduce((a, b) => a + b, 0) / 5;
+      const treble = dataArray.slice(-10).reduce((a, b) => a + b, 0) / 10;
+
+      spawnTrippyParticles(bass, treble);
+
+      particles.forEach((particle, index) => {
+        particle.update();
+        particle.draw();
+        if (particle.size < 0.5) particles.splice(index, 1);
+      });
+
+      // Bars visualization with wave distortion
+      const barWidth = (canvas.width / bufferLength) * 2.5;
+      let xBar = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        const barHeight = dataArray[i] * (1 + Math.sin(Date.now() / 500 + i) * 0.5);
+        ctx.fillStyle = `hsl(${i * 5 + Date.now() / 20}, 80%, 50%)`;
+        ctx.fillRect(xBar, canvas.height - barHeight, barWidth, barHeight);
+        xBar += barWidth + 1;
+      }
+
+      gsap.to('#midLayer', { y: bass / 5, duration: 0.2 });
+      gsap.to('#frontLayer', { y: bass / 3, duration: 0.2 });
+    }
+
+    initParallax();
+  </script>
+</body>
+</html>
